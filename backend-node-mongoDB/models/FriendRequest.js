@@ -13,10 +13,16 @@ const friendRequestSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Pending', 'Accepted', 'Rejected'],
-    default: 'Pending',
+    enum: ['Pending', 'Accepted', 'Rejected', ''],
+    default: '',
   },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+},
 });
+
+// friendRequestSchema.index({ senderId: 1, receiverId: 1 }, { unique: true });
 
 const FriendRequest = mongoose.model('FriendRequest', friendRequestSchema);
 

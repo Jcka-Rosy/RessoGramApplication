@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema({
   },
   gender: {
     type: String,
-    enum: ['Male', 'Female', 'Other'],
+    enum: ['Male', 'Female', 'Other', ''],
   },
   city: {
     value: String,
@@ -43,8 +43,26 @@ const userSchema = new mongoose.Schema({
   },
   resetPasswordToken: String,
   resetPasswordExpires: Date,
-  friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FriendRequest' }],
-  friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FriendRequest' }],
+  friendRequests: [
+    {
+      senderId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      friendRequestId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'FriendRequest',
+      },
+    },
+  ],
+  friends: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'FriendRequest' 
+  }],
+  friendsList: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User' 
+  }],
   activeStatus: {
     type: Boolean,
     default: true,

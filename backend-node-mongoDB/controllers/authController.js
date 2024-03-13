@@ -1,12 +1,14 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const FriendRequest = require('../models/FriendRequest');
+const mongoose = require('mongoose');
 // const EmailTemplate = require('../models/emailtemplate');
 const User = require('../models/User');
 const jwtSecret = "happy-faces";
 
 function generateJWTToken(user) {
-  const token = jwt.sign({ userId: user._id, email: user.email}, jwtSecret, { expiresIn: '11h' });
+  const token = jwt.sign({ userId: user._id, email: user.email }, jwtSecret, { expiresIn: '11h' });
   return token;
 }
 
@@ -36,11 +38,11 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    const newUser = new User({...req.body, name, email, password: hashedPassword });
+    const newUser = new User({ ...req.body, name, email, password: hashedPassword });
     await newUser.save();
 
 
-    res.status(200).json({...req.body, userId: newUser._id, name: newUser.name , email: newUser.email});
+    res.status(200).json({ ...req.body, userId: newUser._id, name: newUser.name, email: newUser.email });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal server error' });
@@ -62,34 +64,43 @@ const login = async (req, res) => {
     }
     const token = generateJWTToken(user);
     res.status(200).json({ userId: user._id, email: user.email, token });
-    
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
 
-const getRegData = async (req, res)=>{
+const getRegData = async (req, res) => {
   try {
-    const accessToken = req.headers.authorization.split(' ')[1]
+    const accessToken = req.headers.authorization.split(' ')[1];
     const user = verifyAndDecodeAccessToken(accessToken, jwtSecret);
+
     if (!user) {
       return res.status(401).json({ code: 401, status: false, message: 'Unauthorized' });
     }
+
     const existingUser = await User.findOne({ _id: user.userId });
     if (!existingUser) {
       return res.status(404).json({ code: 404, status: false, message: 'User not found' });
     }
-    const userSuggestions = await User.find({ _id: { $ne: user.userId } })
-    .limit(5);
+
+    const friendIds = existingUser.friendsList.map((friendId) => friendId.toString());
+    const userSuggestions = await User.find({
+      _id: { $ne: user.userId, $nin: friendIds },
+    })
+      .populate({
+        path: 'friendRequests.friendRequestId',
+        select: 'senderId receiverId status',
+      });
     res.status(200).json(userSuggestions);
   } catch (error) {
     console.error('Error fetching user suggestions:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
-}
+};
 
-const getRegDataById = async (req, res)=>{
+const getRegDataById = async (req, res) => {
   try {
     const userId = req.params.userId;
     const regData = await User.findById(userId, { password: 0 });
@@ -104,64 +115,327 @@ const getRegDataById = async (req, res)=>{
 }
 
 const sendFriendRequest = async (req, res) => {
-  // try {
-  //   const { userId } = req.params;
-  //   const senderId = req.user.userId; // Assuming you have middleware to extract userId from JWT
-
-  //   // Check if the request already exists
-  //   const existingRequest = await FriendRequest.findOne({ senderId, receiverId: userId });
-  //   if (existingRequest) {
-  //     return res.status(400).json({ message: 'Friend request already sent' });
-  //   }
-
-  //   // Create a new friend request
-  //   const newFriendRequest = new FriendRequest({ senderId, receiverId: userId });
-  //   await newFriendRequest.save();
-
-  //   res.status(201).json(newFriendRequest);
-  // } catch (error) {
-  //   console.error(error);
-  //   res.status(500).json({ message: 'Internal server error' });
-  // }
-  const { userId } = req.params;
-  // const { currentUserId } = req.user; // Assuming you have user authentication middleware
-
   try {
-    const accessToken = req.headers.authorization.split(' ')[1]
-    console.log("accessToken",req.headers, "traytawfsds", accessToken)
+    const { userId } = req.params;
+    const accessToken = req.headers.authorization.split(' ')[1];
     const currentUserId = verifyAndDecodeAccessToken(accessToken, jwtSecret);
-    console.log("user--->",currentUserId)
-    if (!currentUserId) {
-      return res.status(401).json({ code: 401, status: false, message: 'Unauthorized' });
-    }
-    // Check if the user is sending a friend request to themselves
-    if (userId === currentUserId.userId.toString()) {
-      return res.status(400).json({ message: "You can't send a friend request to yourself." });
+    const senderId = currentUserId.userId;
+    const receiverId = userId;
+
+    const sender = await User.findById(senderId);
+    const receiver = await User.findById(receiverId);
+
+    if (!sender || !receiver) {
+      throw new Error('Invalid senderId or receiverId');
     }
 
-    // Check if the user is already friends or has sent a friend request
-    const currentUser = await User.findById(currentUserId);
-    if (
-      currentUser.friends.includes(userId) ||
-      currentUser.friendRequests.includes(userId)
-    ) {
-      return res.status(400).json({ message: 'Friend request already sent or they are already your friend.' });
+    const existingRequest = sender.friendRequests.find(
+      (req) => req.senderId.equals(receiverId) && req.friendRequestId.status === 'Pending'
+    );
+
+    if (existingRequest) {
+      return res.status(400).json({ message: 'Friend request already sent or pending.' });
     }
 
-    // Add the friend request to the recipient's friendRequests array
-    await User.findByIdAndUpdate(userId, { $addToSet: { friendRequests: currentUserId } });
     const friendRequest = new FriendRequest({
-      senderId: currentUserId.userId,
-      receiverId: userId,
+      senderId,
+      receiverId,
       status: 'Pending',
     });
-    
-    // Save the friend request
-    friendRequest.save();
-    res.json({ message: 'Friend request sent successfully.' });
+
+    await friendRequest.save();
+
+    if (!receiver.friendRequests.some((req) => req.senderId.equals(senderId))) {
+      receiver.friendRequests.push({
+        senderId,
+        friendRequestId: friendRequest._id,
+      });
+    }
+
+    if (!sender.friendRequests.some((req) => req.senderId.equals(receiverId))) {
+      sender.friendRequests.push({
+        senderId,
+        friendRequestId: friendRequest._id,
+      });
+    }
+
+    await sender.save();
+    await receiver.save();
+
+    res.json({ message: 'Friend request sent successfully.', friendRequestStatus: 'Requested' });
   } catch (error) {
     console.error('Error sending friend request:', error);
     res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// const getFriendRequests = async (req, res) => {
+//   try {
+//     const accessToken = req.headers.authorization.split(' ')[1];
+//     const userData = verifyAndDecodeAccessToken(accessToken, jwtSecret);
+
+//     const user = await User.findById(userData.userId).populate({
+//       path: 'friendRequests',
+//       populate: {
+//         path: 'senderId',
+//         select: 'name',
+//       },
+//     }).populate({
+//       path: 'friendRequests',
+//       populate: {
+//         path: 'friendRequestId',
+//         select: 'senderId receiverId status',
+//       },
+//     });
+
+//     if (!user) {
+//       return res.status(404).json({ message: 'User not found' });
+//     }
+
+//     const filteredFriendRequests = user.friendRequests
+//       .filter(request => 
+//         !request.senderId._id.equals(userData.userId) && 
+//         request.friendRequestId.status !== 'Accepted' // Filter out accepted friend requests
+//       )
+//       .map((request) => ({
+//         _id: request.senderId._id,
+//         senderName: request.senderId.name,
+//         receiverId: request.friendRequestId,
+//         objectId: request._id,
+//         status: request?.friendRequestId?.status,
+//         createdAt: request.createdAt,
+//       }));
+
+//     res.json(filteredFriendRequests);
+//   } catch (error) {
+//     console.error('Error fetching friend requests:', error);
+//     res.status(500).json({ message: 'Internal server error' });
+//   }
+// };
+
+const getFriendRequests = async (req, res) => {
+  try {
+    const accessToken = req.headers.authorization.split(' ')[1];
+    const userData = verifyAndDecodeAccessToken(accessToken, jwtSecret);
+
+    const filteredFriendRequests = await User.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(userData.userId) } },
+      {
+        $lookup: {
+          from: 'users', 
+          localField: 'friendRequests.senderId',
+          foreignField: '_id',
+          as: 'senderInfo',
+        },
+      },
+      { $unwind: '$senderInfo' },
+      {
+        $lookup: {
+          from: 'friendrequests',
+          localField: 'friendRequests.friendRequestId',
+          foreignField: '_id',
+          as: 'friendRequestsInfo',
+        },
+      },
+      { $unwind: '$friendRequestsInfo' },
+      {
+        $facet: {
+          data: [
+            {
+              $match: { 'friendRequestsInfo.status': { $ne: 'Accepted' } },
+            },
+            {
+              $project: {
+                _id: '$friendRequestsInfo.senderId',
+                senderName: '$senderInfo.name',
+                receiverId: '$friendRequestsInfo.friendRequestId',
+                objectId: '$friendRequestsInfo._id',
+                status: '$friendRequestsInfo.status',
+                createdAt: '$friendRequestsInfo.createdAt',
+              },
+            },
+            {
+              $sort: { createdAt: -1 },
+            },
+          ],
+        },
+      },
+    ]);
+    res.json(filteredFriendRequests);
+  } catch (error) {
+    console.error('Error fetching friend requests:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const getFriends = async (req, res) => {
+  try {
+    const accessToken = req.headers.authorization.split(' ')[1];
+    const userData = verifyAndDecodeAccessToken(accessToken, jwtSecret);
+
+    const user = await User.findById(userData.userId).populate({
+      path: 'friendsList',
+      select: 'name', // Assuming your User model has a 'name' field
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const friends = user.friendsList.map(friendId => ({
+      _id: friendId._id,
+      name: friendId.name,
+    }));
+
+    res.json(friends);
+  } catch (error) {
+    console.error('Error fetching friends:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// const getFriends = async (req, res) => {
+//   try {
+//     const accessToken = req.headers.authorization.split(' ')[1];
+//     const userData = verifyAndDecodeAccessToken(accessToken, jwtSecret);
+
+//     const userId = mongoose.Types.ObjectId(userData.userId);
+
+//     const user = await User.aggregate([
+//       {
+//         $match: { _id: userId }
+//       },
+//       {
+//         $lookup: {
+//           from: 'friendrequests',
+//           localField: 'friendRequests.senderId',
+//           foreignField: '_id',
+//           as: 'friendRequestsData'
+//         }
+//       },
+//       {
+//         $unwind: '$friendRequestsData'
+//       },
+//       {
+//         $match: {
+//           'friendRequestsData.senderId': { $ne: userId }
+//         }
+//       },
+//       {
+//         $lookup: {
+//           from: 'users',
+//           localField: 'friendRequestsData.senderId',
+//           foreignField: '_id',
+//           as: 'friendData'
+//         }
+//       },
+//       {
+//         $unwind: '$friendData'
+//       },
+//       {
+//         $project: {
+//           _id: '$friendData._id',
+//           name: '$friendData.name'
+//           // Add other fields as needed
+//         }
+//       }
+//     ]);
+
+//     if (!user || !user[0]) {
+//       return res.status(404).json({ message: 'User not found' });
+//     }
+
+//     const friends = user.map(request => ({
+//       _id: request._id,
+//       name: request.name,
+//       // Add other fields as needed
+//     }));
+
+//     res.json({ friends, user });
+//   } catch (error) {
+//     console.error('Error fetching friends:', error);
+//     res.status(500).json({ message: 'Internal server error' });
+//   }
+// };
+
+const processFriendRequest = async (req, res) => {
+  try {
+    const { senderId, action } = req.params;
+
+    const friendRequest = await FriendRequest.findOne({ senderId });
+
+    if (!friendRequest) {
+      return res.status(404).json({ message: 'Friend request not found' });
+    }
+
+    if (action === 'Accepted') {
+      friendRequest.status = 'Accepted';
+      await friendRequest.save();
+
+      // Add senderId to receiver's friendsList and vice versa
+      await User.findByIdAndUpdate(friendRequest.senderId, {
+        $addToSet: { friendsList: friendRequest.receiverId },
+      });
+
+      await User.findByIdAndUpdate(friendRequest.receiverId, {
+        $addToSet: { friendsList: friendRequest.senderId },
+      });
+
+      // Remove friend request from sender's and receiver's friendRequests list
+      await User.findByIdAndUpdate(friendRequest.senderId, {
+        $pull: { friendRequests: { _id: friendRequest._id } },
+      });
+
+      await User.findByIdAndUpdate(friendRequest.receiverId, {
+        $pull: { friendRequests: { _id: friendRequest._id } },
+      });
+
+      res.json({ message: 'Friend request accepted successfully.' });
+    } else if (action === 'Rejected') {
+      friendRequest.status = 'Rejected';
+      await friendRequest.save();
+
+      // Remove friend request from sender's and receiver's friendRequests list
+      await User.findByIdAndUpdate(friendRequest.senderId, {
+        $pull: { friendRequests: { _id: friendRequest._id } },
+      });
+
+      await User.findByIdAndUpdate(friendRequest.receiverId, {
+        $pull: { friendRequests: { _id: friendRequest._id } },
+      });
+
+      res.json({ message: 'Friend request rejected successfully.' });
+    } else {
+      return res.status(400).json({ message: 'Invalid action parameter.' });
+    }
+  } catch (error) {
+    console.error('Error processing friend request:', error);
+    res.status(500).json({ message: 'Internal server error.' });  
+  }
+};
+
+const disconnectFriend = async (req, res) => {
+  try {
+    const { friendId } = req.params;
+    const accessToken = req.headers.authorization.split(' ')[1];
+    const userData = verifyAndDecodeAccessToken(accessToken, jwtSecret);
+
+    const user = await User.findByIdAndUpdate(
+      userData.userId,
+      { $pull: { friendsList: friendId } },
+      { new: true }
+    );
+
+    await User.findByIdAndUpdate(
+      friendId,
+      { $pull: { friendsList: userData.userId } },
+      { new: true }
+    );
+    await user.save()
+    res.json({ message: 'Disconnected successfully.' });
+  } catch (error) {
+    console.error('Error disconnecting friend:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -187,6 +461,7 @@ const sendPasswordResetEmail = (email, token) => {
     }
   });
 };
+
 const forgetPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -211,12 +486,9 @@ const resetPassword = async (req, res) => {
   try {
     const { token } = req.params;
     const { newPassword } = req.body;
-     console.log("newPassword", newPassword, "token", token)
-
     const user = await User.findOne({
       resetPasswordToken: token,
     });
-
     if (!user) {
       return res.status(400).json({ message: 'Invalid or expired token', token });
     }
@@ -224,9 +496,7 @@ const resetPassword = async (req, res) => {
     user.password = hashedPassword;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
-
     await user.save();
-
     res.status(200).json({ message: 'Password updated successfully' });
   } catch (error) {
     console.error('Password Reset Error:', error);
@@ -240,7 +510,6 @@ const passwordRequirements = {
   requiresUppercase: true,
 };
 
-// Endpoint to fetch password requirements
 const passwordNeeds = async (req, res) => {
   try {
     res.status(200).json(passwordRequirements);
@@ -251,14 +520,20 @@ const passwordNeeds = async (req, res) => {
 };
 
 
-module.exports = { 
-  register, 
-  login, 
-  getRegData, 
+module.exports = {
+  register,
+  login,
+  getRegData,
   getRegDataById,
   sendFriendRequest,
+  processFriendRequest,
+  disconnectFriend,
+  // acceptFriendRequest,
+  // rejectFriendRequest,
   forgetPassword,
   resetPassword,
-  passwordNeeds
+  passwordNeeds,
+  getFriendRequests,
+  getFriends,
   // createTemplate
 };

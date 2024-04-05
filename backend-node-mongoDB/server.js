@@ -3,16 +3,18 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const http = require('http'); // Import http module
-const { Server } = require('socket.io');
+// const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app); // Create an http server and pass the Express app to it
-const io = new Server(server); // Attach the Socket.IO server to the http server
+const { io } = require('./socket');
+// const io = new Server(server); // Attach the Socket.IO server to the http server
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
-
+// server = require('http').Server(app),
+io.attach(server);
 // MongoDB connection
 mongoose.connect('mongodb://localhost:27017/mern-auth', { useNewUrlParser: true, useUnifiedTopology: true });
 
@@ -20,7 +22,7 @@ mongoose.connect('mongodb://localhost:27017/mern-auth', { useNewUrlParser: true,
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/friends', require('./routes/friends'));
-
+app.use("/posted-images", express.static(__dirname + "/uploads/post"));
 // WebSocket handling
 // io.on('connection', (socket) => {
 //   console.log('A user connected');

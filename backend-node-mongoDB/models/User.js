@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const Post = require('./Post');
+const Comment = require('./Comments')
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -55,14 +57,24 @@ const userSchema = new mongoose.Schema({
       },
     },
   ],
-  friends: [{ 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'FriendRequest' 
+  friends: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'FriendRequest'
   }],
-  friendsList: [{ 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User' 
+  friendsList: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }],
+  notifications: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Notification'
+  }],
+  notificationPreferences: {
+    friendRequest: { type: Boolean, default: true },
+    friendConnect: { type: Boolean, default: true },
+    likePost: { type: Boolean, default: true },
+    newPost: { type: Boolean, default: true },
+  },
   activeStatus: {
     type: Boolean,
     default: true,
@@ -76,6 +88,19 @@ const userSchema = new mongoose.Schema({
     default: Date.now(),
   },
 });
+
+userSchema.virtual('posts', {
+  ref: 'Post',
+  localField: '_id',
+  foreignField: 'user',
+});
+
+userSchema.virtual('comments', {
+  ref: 'Comment',
+  localField: '_id',
+  foreignField: 'user',
+});
+
 
 const User = mongoose.model('User', userSchema);
 

@@ -5,6 +5,7 @@ const User = require('./models/User');
 const mongoose = require('mongoose');
 const ChatMessages = require('./models/ChatMessage');
 const ChatRoom = require('./models/ChatRoom');
+const Comment = require('./models/Comments');
 
 const app = express();
 const server = http.createServer(app);
@@ -184,7 +185,7 @@ io.on('connection', (socket) => {
                     sender: { id: senderId, name: sender.name },
                     receiver: { id: receiverId, name: receiver.name },
                     content: content,
-                    timestamp: new Date(),
+                    timestamp: new Date(),  
                     roomId: roomId,
                     viewed: false // Initially set viewed to false
                 }]
@@ -203,18 +204,18 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('seen message', async ({ roomId, userId, messageId }) => {
+    socket.on('seen message', async ({ roomId, userId, messageIds }) => {
         // Update the message's seenBy array in MongoDB
-        console.log("messageId", messageId)
-        //     const seenMessages= await ChatMessages.updateOne(
-        //         { roomId, 'messages._id': messageId },
-        //         { $addToSet: { 'messages.$.seenBy': userId } }
-        //     );
-        // console.log("seenMessages", seenMessages)
+        console.log("messageId", messageIds)
+        const seenMessages = await ChatMessages.updateOne(
+            { 'messages.roomId': roomId, 'messages._id': { $in: messageIds } },
+            { $addToSet: { 'messages.$.seenBy': userId } }
+        );
+        console.log("seenMessages", seenMessages)
         // Broadcast the updated message seen status to all participants
-        io.to(roomId).emit('messageDelivered', { userId, messageId });
+        io.to(roomId).emit('messageDelivered', { userId, messageIds });
     });
-
+ 
     // socket.on("markMessagesAsSeen", async ({ conversationId, userId }) => {
     //     try {
     //         await ChatMessages.updateMany({ roomId: conversationId, viewed: false }, { $set: { viewed: true } });
@@ -251,7 +252,30 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('blockFriend', async ({ friendId }) => {
+        try {
+            // Implement block logic here, update database, etc.
+            // For example:
+            await User.findByIdAndUpdate(friendId, { blocked: true });
+    
+            // Inform frontend about the success of the block action
+            socket.emit('friendBlocked', { friendId });
+        } catch (error) {
+            console.error('Error blocking friend:', error.message);
+        }
+    });
 
+    // socket.on('new-comment', async ({ postId, content }) => {
+    //     try {
+    //       // Save the comment to the database
+    //       const comment = await Comment.create({ postId, userId: socket.userId, content });
+    //       // Emit the new comment to other clients viewing the same post
+    //       socket.to(postId).emit('new-comment', comment);
+    //     } catch (error) {
+    //       console.error('Error saving comment:', error);
+    //     }
+    //   });
+    
     // Handle disconnection
     socket.on('disconnect', () => {
         console.log('Client disconnected');

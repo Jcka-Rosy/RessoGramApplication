@@ -17,6 +17,7 @@ const {
     getAllPosts,
     getPostById,
     likePost,
+    likeComment,
     getNotificationsController,
     notificationPreference,
     getNotificationPreference,
@@ -27,7 +28,13 @@ const {
     createChatRoom,
     getRoomId,
     getMessageHistory,
-    getMessageCount} = require('../controllers/authController');
+    getMessageCount,
+    blockUsers,
+    unBlockUsers,
+    getBlockedUsers,
+    handleComment,
+    getAllComment,
+    updateProfile} = require('../controllers/authController');
 
 const multer = require("multer");
 const path = require("path");
@@ -38,8 +45,8 @@ function createMulterMiddleware(fieldName, uploadDir) {
     return multer({
         storage: multer.diskStorage({
             destination: function (req, file, callback) {
-                fs.mkdirSync(path.join(__dirname, `../uploads/post`), { recursive: true });
-                callback(null, path.join(__dirname, `../uploads/post`));
+                fs.mkdirSync(path.join(__dirname, `../${uploadDir}`), { recursive: true });
+                callback(null, path.join(__dirname, `../${uploadDir}`));
             },
             filename: function (req, file, callback) {
                 const uniquePrefix = Date.now() + Math.random().toString();
@@ -58,6 +65,7 @@ router.post('/reset-password/:token', resetPassword);
 router.get('/password-requirements', passwordNeeds);
 router.get('/get-reg-data', getRegData),
 router.get('/get-reg-data/:userId', getRegDataById),
+router.put('/update-profile/:userId', createMulterMiddleware('file', 'uploads/profile'), updateProfile)
 
 router.post('/send-friend-request/:userId', sendFriendRequest);
 router.get('/get-friend-requests', getFriendRequests);
@@ -70,6 +78,9 @@ router.post('/upload-post', createMulterMiddleware('file', 'uploads/post'), uplo
 router.get('/get-all-post', getAllPosts)
 router.get('/get-all-post/:userId', getPostById)
 router.post('/like-post/:postId/like', likePost)
+router.post('/comments', handleComment)
+router.get('/comments/image/:imageId', getAllComment)
+router.post('/like-comment/:commentId/like', likeComment)
 router.post('/notification-preferences',notificationPreference)
 router.get('/get-notification-preferences/:userId', getNotificationPreference)
 router.get('/get-notification-details/:id', notificationDetails)
@@ -80,5 +91,8 @@ router.post('/create-chat-room/:receiverId/:userId', createChatRoom)
 router.get('/get-roomId/:receiverId/:userId', getRoomId)
 router.get('/get-message-history/:roomId', getMessageHistory)
 router.get('/get-message-count/:userId', getMessageCount)
+router.post('/users/:userId/block', blockUsers)
+router.post('/users/:userId/unblock', unBlockUsers)
+router.get('/get-blocked-users/:userId', getBlockedUsers)
 
 module.exports = router;

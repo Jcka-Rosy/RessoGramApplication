@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
 const Post = require('./Post');
-const Comment = require('./Comments')
+const Comment = require('./Comments');
 
 const userSchema = new mongoose.Schema({
+  // Existing fields
   name: {
     type: String,
     required: true,
@@ -83,6 +84,18 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  blocked: {
+    type: Boolean,
+    default: false,
+  },
+  blockedUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  }],
+  blockedBy:[{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  }],
   createdAt: {
     type: Date,
     default: Date.now(),
@@ -100,7 +113,6 @@ userSchema.virtual('comments', {
   localField: '_id',
   foreignField: 'user',
 });
-
 
 const User = mongoose.model('User', userSchema);
 

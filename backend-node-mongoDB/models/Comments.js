@@ -5,11 +5,11 @@ const commentSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  user: {
+  userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
   },
-  post: {
+  postId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Post',
   },
@@ -17,6 +17,26 @@ const commentSchema = new mongoose.Schema({
     type: Date,
     default: Date.now(),
   },
+  likes: [{
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }
+}],
+  replies: [{
+    content: {
+      type: String,
+      required: true,
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now(),
+    },
+  }],
 });
 
 const Comment = mongoose.model('Comment', commentSchema);

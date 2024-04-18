@@ -12,7 +12,8 @@ const { io } = require('./socket');
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 // server = require('http').Server(app),
 io.attach(server);
 // MongoDB connection
@@ -23,6 +24,8 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/friends', require('./routes/friends'));
 app.use("/posted-images", express.static(__dirname + "/uploads/post"));
+app.use("/posted-profile", express.static(__dirname + "/uploads/profile"));
+
 // WebSocket handling
 // io.on('connection', (socket) => {
 //   console.log('A user connected');

@@ -13,6 +13,7 @@ const ChatRoom = require('../models/ChatRoom');
 const jwtSecret = "happy-faces";
 const { v4: uuidv4 } = require('uuid');
 const ChatMessages = require('../models/ChatMessage');
+const Comment = require('../models/Comments');
 
 function generateJWTToken(user) {
   const token = jwt.sign({ userId: user._id, email: user.email }, jwtSecret, { expiresIn: '11h' });
@@ -168,7 +169,7 @@ const getRegData = async (req, res) => {
 
     const friendIds = existingUser.friendsList.map((friendId) => friendId.toString());
     const userSuggestions = await User.find({
-      _id: { $ne: user.userId, $nin: friendIds },
+      _id: { $ne: user.userId, $nin: friendIds, $nin: existingUser.blockedUsers, $nin: existingUser.blockedBy },
     })
       .populate({
         path: 'friendRequests.friendRequestId',
@@ -184,6 +185,7 @@ const getRegDataById = async (req, res) => {
   try {
     const userId = req.params.userId;
     const regData = await User.findById(userId, { password: 0 });
+    console.log("regData---->", regData)
     if (!regData) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -192,6 +194,38 @@ const getRegDataById = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 }
+
+const updateProfile = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log("userId-->", userId, req.body);
+
+    const { name, gender, city, state, knownLanguage, knownTechnology } = req.body;
+    console.log("city-->", JSON.parse(city), req.body);
+
+    const file = req.file; // Assuming only one file is uploaded
+    console.log("file", file)
+    const updatedProfileData = {
+      name,
+      gender,
+      city: JSON.parse(city),
+      state: JSON.parse(state),
+      knownLanguage: JSON.parse(knownLanguage),
+      knownTechnology: JSON.parse(knownTechnology),
+    };
+    console.log("updatedProfileData", updatedProfileData)
+    if (file) {
+      updatedProfileData.coverImage = file.filename; // Adjust this based on your file storage configuration
+    }
+
+    const updatedProfile = await User.findByIdAndUpdate(userId, updatedProfileData, { new: true });
+
+    res.status(200).json(updatedProfile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
 
 const sendFriendRequest = async (req, res) => {
   try {
@@ -337,16 +371,17 @@ const getFriends = async (req, res) => {
 
     const user = await User.findById(userData.userId).populate({
       path: 'friendsList',
-      select: 'name', // Assuming your User model has a 'name' field
+      select: 'name coverImage', // Include 'coverImage' field
     });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const friends = user.friendsList.map(friendId => ({
-      _id: friendId._id,
-      name: friendId.name,
+    const friends = user.friendsList.map(friend => ({
+      _id: friend._id,
+      name: friend.name,
+      coverImage: friend.coverImage, // Add 'coverImage' field to the friend object
     }));
 
     res.json(friends);
@@ -354,6 +389,7 @@ const getFriends = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
 
 // const getFriends = async (req, res) => {
 //   try {
@@ -575,12 +611,14 @@ const uploadPost = async (req, res) => {
 
 const getAllPosts = async (req, res) => {
   try {
-    const posts = await Post.find().populate('user', 'name').populate('likes').sort({ createdAt: -1 })
+    const posts = await Post.find().populate('user', 'name coverImage').populate('likes').sort({ createdAt: -1 })
+    console.log("posts------------>", posts)
     const formattedPosts = posts.map(post => ({
       _id: post._id,
       title: post.title,
       caption: post.caption,
       user: post.user.name,
+      coverImage: post.user.coverImage,
       file: post.file,
       like: post.likes,
       count: post.likes?.length,
@@ -670,6 +708,31 @@ const likePost = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+const likeComment = async (req, res) => {
+  try {
+    const { userId } = req.body; 
+    const { commentId } = req.params;
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    const userIndex = comment.likes.findIndex(like => like.user.toString() === userId);
+
+    if (userIndex === -1) {
+      comment.likes.push({ user: userId });
+    } else {
+      comment.likes.splice(userIndex, 1);
+    }
+    await comment.save();
+
+    res.status(200).json({ message: 'Like status toggled successfully' });
+  } catch (error) {
+    console.error('Error toggling like on comment:', error.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
 
 const getNotificationsController = async (req, res) => {
   try {
@@ -695,7 +758,6 @@ const getNotificationsController = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
-
 
 const notificationPreference = async (req, res) => {
   try {
@@ -738,7 +800,6 @@ const notificationDetails = async (req, res) => {
       return res.status(404).json({ error: 'Notification not found' });
     }
     const postDetails = await Post.findById(notification.postId).populate('user', 'name').populate('likes');
-    console.log("postDetails", postDetails);
     res.status(200).json(postDetails);
   } catch (error) {
     console.error('Error fetching notification details:', error);
@@ -756,8 +817,8 @@ const notificationUserDetails = async (req, res) => {
     }
 
     const senderDetails = await User.findById(notification.sender);
-    const posts = await Post.find({ user: notification.sender }).populate('likes'); // Use `find` instead of `findById`
-    
+    const posts = await Post.find({ user: notification.sender }).populate('likes');
+
     const formattedPosts = posts.map(post => ({
       _id: post._id,
       title: post.title,
@@ -771,7 +832,6 @@ const notificationUserDetails = async (req, res) => {
       __v: post.__v
     }));
 
-    console.log("senderDetails", senderDetails, "posts", posts)
     res.status(200).json({ senderDetails, formattedPosts });
   } catch (error) {
     console.error('Error fetching notification details:', error);
@@ -797,9 +857,9 @@ const postMessages = async (req, res) => {
   try {
     const { receiverId, content } = req.body;
     // const message = new Message({
-    //   sender: req.user._id,
-    //   receiver: receiverId,`
-    //   content
+      // sender: req.user._id,
+      // receiver: receiverId,`
+      // content
     // });
     // await message.save();
     // res.status(201).json(message);
@@ -851,7 +911,7 @@ const getRoomId = async (req, res) => {
         { receiverId: userId, senderId: receiverId }
       ]
     });
-    
+
     if (!chatRoom) {
       return res.status(404).json({ error: 'Room not found for receiverId' });
     }
@@ -865,12 +925,11 @@ const getRoomId = async (req, res) => {
 
 const getMessageHistory = async (req, res) => {
   const { roomId } = req.params;
-  console.log("roomId----->", roomId)
   try {
-    // Find messages in the specified room
-    const messages = await ChatMessages.find({ 'messages.roomId': roomId });
-
-    console.log("messages------>", messages);
+    const messages = await ChatMessages.find({ 'messages.roomId': roomId })
+      .populate('messages.sender.id', 'coverImage')
+      .populate('messages.receiver.id', 'coverImage');
+    console.log("messages------->", messages)
     res.json({ messages });
   } catch (error) {
     console.error('Error fetching messages in room:', error.message);
@@ -879,25 +938,103 @@ const getMessageHistory = async (req, res) => {
 };
 
 const getMessageCount = async (req, res) => {
-    const { userId } = req.params;
-
-    console.log("userIdToday----->", userId)
-  
-    try {
-        // Count the number of messages where the given user ID is either the sender or receiver
-        const messageCount = await ChatMessages.countDocuments({
-            $or: [
-                { 'messages.sender.id': userId, 'messages.viewed': false },
-                { 'messages.receiver.id': userId, 'messages.viewed': false }
-            ]
-        });
-        // Send the count of messages as a response
-        res.json({ messageCount });
-    } catch (error) {
-        console.error('Error retrieving message count:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
+  const { userId } = req.params;
+  try {
+    const messageCount = await ChatMessages.countDocuments({
+      $or: [
+        { 'messages.sender.id': userId, 'messages.viewed': false },
+        { 'messages.receiver.id': userId, 'messages.viewed': false }
+      ]
+    });
+    res.json({ messageCount });
+  } catch (error) {
+    console.error('Error retrieving message count:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
 };
+
+const blockUsers = async (req, res) => {
+  const { userId } = req.params;
+  const { friendId } = req.body;
+  try {
+    await User.findByIdAndUpdate(userId, { $addToSet: { blockedUsers: friendId } });
+    await User.findByIdAndUpdate(friendId, { $addToSet: { blockedBy: userId } });
+
+    await User.findByIdAndUpdate(userId, { $pull: { friendsList: friendId } });
+    await User.findByIdAndUpdate(friendId, { $pull: { friendsList: userId } });
+    res.status(200).send({ message: 'Friend blocked successfully' });
+  } catch (error) {
+    console.error('Error blocking friend:', error.message);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+}
+
+const unBlockUsers = async (req, res) => {
+  const { userId } = req.params;
+  const { friendId } = req.body;
+  try {
+    await User.findByIdAndUpdate(userId, { $pull: { blockedUsers: friendId } });
+    await User.findByIdAndUpdate(friendId, { $pull: { blockedBy: userId } });
+    await User.findByIdAndUpdate(userId, { $pull: { blockedBy: friendId } });
+    res.status(200).send({ message: 'Friend blocked successfully' });
+  } catch (error) {
+    console.error('Error blocking friend:', error.message);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+}
+
+const getBlockedUsers = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const user = await User.findById(userId).populate('blockedUsers', 'name coverImage');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.status(200).json(user.blockedUsers);
+  } catch (error) {
+    console.error('Error fetching blocked users:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+const handleComment = async (req, res) => {
+  try {
+    const { postId, content, userId } = req.body;
+    // Save the comment to the database
+    const comment = await Comment.create({ postId, userId, content });
+    // io.to(postId).emit('new-comment', comment);
+    res.status(201).json({ success: true, comment });
+  } catch (error) {
+    console.error('Error saving comment:', error);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+}
+
+const getAllComment = async (req, res) => {
+  const { imageId } = req.params;
+  try {
+    const comments = await Comment.find({ postId: imageId })
+      .populate({
+        path: 'userId',
+        select: 'name coverImage'
+      });
+
+    const formatedComments = comments.map(comment => ({
+      _id:comment.id,
+      content: comment.content,
+      like: comment.likes,
+      count: comment.likes?.length,
+      name: comment.userId.name,
+      coverImage: comment.userId.coverImage,
+    }))
+
+    res.status(200).json(formatedComments);
+  } catch (error) {
+    console.error('Error fetching comments:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
 
 module.exports = {
   register,
@@ -907,6 +1044,7 @@ module.exports = {
   passwordNeeds,
   getRegData,
   getRegDataById,
+  updateProfile,
   sendFriendRequest,
   processFriendRequest,
   disconnectFriend,
@@ -916,6 +1054,7 @@ module.exports = {
   getAllPosts,
   getPostById,
   likePost,
+  likeComment,
   getNotificationsController,
   notificationPreference,
   getNotificationPreference,
@@ -926,5 +1065,10 @@ module.exports = {
   getRoomId,
   createChatRoom,
   getMessageHistory,
-  getMessageCount
+  getMessageCount,
+  blockUsers,
+  unBlockUsers,
+  getBlockedUsers,
+  handleComment,
+  getAllComment
 };

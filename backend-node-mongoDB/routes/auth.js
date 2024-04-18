@@ -33,6 +33,7 @@ const {
     unBlockUsers,
     getBlockedUsers,
     handleComment,
+    handleReplyComment,
     getAllComment,
     updateProfile} = require('../controllers/authController');
 
@@ -79,6 +80,7 @@ router.get('/get-all-post', getAllPosts)
 router.get('/get-all-post/:userId', getPostById)
 router.post('/like-post/:postId/like', likePost)
 router.post('/comments', handleComment)
+router.post('/comments/:commentId/reply', handleReplyComment)
 router.get('/comments/image/:imageId', getAllComment)
 router.post('/like-comment/:commentId/like', likeComment)
 router.post('/notification-preferences',notificationPreference)

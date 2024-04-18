@@ -17,7 +17,10 @@ app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 // server = require('http').Server(app),
 io.attach(server);
 // MongoDB connection
-mongoose.connect('mongodb://localhost:27017/mern-auth', { useNewUrlParser: true, useUnifiedTopology: true });
+// mongoose.connect('mongodb://localhost:27017/mern-auth', { useNewUrlParser: true, useUnifiedTopology: true });
+// mongodb+srv://jesicarosy157:<password>@cluster0.ipih3bi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+mongoose.connect('mongodb+srv://jesicarosy157:NlAPRlw84aSsvdpI@cluster0.ipih3bi.mongodb.net/social_media', { useNewUrlParser: true, useUnifiedTopology: true })
+.then((res)=>console.log('Connect')).catch((er)=>console.log('not Connect',er.message))
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));

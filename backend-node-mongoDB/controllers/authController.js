@@ -1011,6 +1011,32 @@ const handleComment = async (req, res) => {
   }
 }
 
+const handleReplyComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { content, userId } = req.body;
+
+    // Find the comment in the database
+    const comment = await Comment.findById(commentId);
+
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    // Add the reply to the comment
+    comment.replies.push({ content, userId });
+
+    // Save the updated comment
+    await comment.save();
+
+    // Send a success response
+    res.status(201).json({ message: 'Reply submitted successfully', data: comment });
+  } catch (error) {
+    console.error('Error submitting reply:', error);
+    res.status(500).json({ error: 'Failed to submit reply' });
+  }
+}
+
 const getAllComment = async (req, res) => {
   const { imageId } = req.params;
   try {
@@ -1027,6 +1053,7 @@ const getAllComment = async (req, res) => {
       count: comment.likes?.length,
       name: comment.userId.name,
       coverImage: comment.userId.coverImage,
+      replies: comment.replies
     }))
 
     res.status(200).json(formatedComments);
@@ -1070,5 +1097,6 @@ module.exports = {
   unBlockUsers,
   getBlockedUsers,
   handleComment,
+  handleReplyComment,
   getAllComment
 };

@@ -11,7 +11,9 @@ const { io } = require('./socket');
 // const io = new Server(server); // Attach the Socket.IO server to the http server
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin:'*'
+}));
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 // server = require('http').Server(app),

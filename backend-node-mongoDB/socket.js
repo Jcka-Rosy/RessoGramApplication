@@ -14,7 +14,7 @@ const io = socketIO(server, {
         origin: '*',
     }
 });
-const roomId = 'room'
+// const roomId = 'room'
 io.on('connection', (socket) => {
     console.log("Connection Test----->")
 

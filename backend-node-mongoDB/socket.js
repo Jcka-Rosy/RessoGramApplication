@@ -185,7 +185,7 @@ io.on('connection', (socket) => {
                     sender: { id: senderId, name: sender.name },
                     receiver: { id: receiverId, name: receiver.name },
                     content: content,
-                    timestamp: new Date(),  
+                    timestamp: new Date(),
                     roomId: roomId,
                     viewed: false // Initially set viewed to false
                 }]
@@ -215,7 +215,7 @@ io.on('connection', (socket) => {
         // Broadcast the updated message seen status to all participants
         io.to(roomId).emit('messageDelivered', { userId, messageIds });
     });
- 
+
     // socket.on("markMessagesAsSeen", async ({ conversationId, userId }) => {
     //     try {
     //         await ChatMessages.updateMany({ roomId: conversationId, viewed: false }, { $set: { viewed: true } });
@@ -257,7 +257,7 @@ io.on('connection', (socket) => {
             // Implement block logic here, update database, etc.
             // For example:
             await User.findByIdAndUpdate(friendId, { blocked: true });
-    
+
             // Inform frontend about the success of the block action
             socket.emit('friendBlocked', { friendId });
         } catch (error) {
@@ -275,25 +275,24 @@ io.on('connection', (socket) => {
     //       console.error('Error saving comment:', error);
     //     }
     //   });
-    
-    // Handle disconnection
-    socket.on("disconnect", (reason, details) => {
-        // the reason of the disconnection, for example "transport error"
-        console.log(reason);
-      
-        // the low-level reason of the disconnection, for example "xhr post error"
-        console.log(details.message);
-      
-        // some additional description, for example the status code of the HTTP response
-        console.log(details.description);
-      
-        // some additional context, for example the XMLHttpRequest object
-        console.log(details.context);
-      });
 
-    socket.on('leave group', ({ groupName }) => {
-        console.log('groupName ', groupName)
-        socket.leave(groupName);
+    // Handle disconnection
+
+    socket.on("disconnect", (reason, details) => {
+        // Log the reason of the disconnection
+        console.log("Disconnect reason:", reason);
+    
+        // Check if the details object is defined before accessing its properties
+        if (details) {
+            // Log the low-level reason of the disconnection
+            console.log("Disconnect message:", details.message);
+    
+            // Log some additional description
+            console.log("Disconnect description:", details.description);
+    
+            // Log some additional context
+            console.log("Disconnect context:", details.context);
+        }
     });
 })
 

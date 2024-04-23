@@ -18,10 +18,10 @@ const roomId = 'room'
 io.on('connection', (socket) => {
     console.log("Connection Test----->")
 
-    socket.on('join room', (groupName) => {
-        console.log("MY ROOM--->", "groupName")
-        socket.join(roomId);
-    });
+    // socket.on('join room', (groupName) => {
+    //     console.log("MY ROOM--->", "groupName")
+    //     socket.join(roomId);
+    // });
 
     socket.on('send request', async ({ senderId, receiverId }) => {
         console.log("senderId", senderId, "receiverId", receiverId)

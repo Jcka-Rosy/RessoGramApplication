@@ -11,11 +11,11 @@ const { io } = require('./socket');
 // const io = new Server(server); // Attach the Socket.IO server to the http server
 
 // Middleware
-app.use(cors({
-    origin:'*',
-    methods: ["GET", "POST"],
+const corsOptions = {
     credentials: true,
-}));
+    origin: "*",
+};
+app.use(cors(corsOptions));
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 // server = require('http').Server(app),
@@ -24,7 +24,7 @@ io.attach(server);
 // mongoose.connect('mongodb://localhost:27017/mern-auth', { useNewUrlParser: true, useUnifiedTopology: true });
 // mongodb+srv://jesicarosy157:<password>@cluster0.ipih3bi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
 mongoose.connect('mongodb+srv://jesicarosy157:NlAPRlw84aSsvdpI@cluster0.ipih3bi.mongodb.net/social_media', { useNewUrlParser: true, useUnifiedTopology: true })
-.then((res)=>console.log('Connect')).catch((er)=>console.log('not Connect',er.message))
+    .then((res) => console.log('Connect')).catch((er) => console.log('not Connect', er.message))
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));

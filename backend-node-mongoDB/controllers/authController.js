@@ -660,19 +660,19 @@ const getPostById = async (req, res) => {
     const posts = await Post.find({ _id : postId })
     console.log("postId", posts)
     // .populate('user', 'name').populate('likes');
-    // const formattedPosts = posts.map(post => ({
-    //   _id: post._id,
-    //   title: post.title,
-    //   caption: post.caption,
-    //   user: post.user.name,
-    //   file: post.file,
-    //   like: post.likes,
-    //   count: post.likes?.length,
-    //   comments: post.comments,
-    //   createdAt: post.createdAt,
-    //   __v: post.__v
-    // }));
-    res.status(200).json(posts);
+    const formattedPosts = posts.map(post => ({
+      _id: post._id,
+      title: post.title,
+      caption: post.caption,
+      user: post.user.name,
+      file: post.file,
+      like: post.likes,
+      count: post.likes?.length,
+      comments: post.comments,
+      createdAt: post.createdAt,
+      __v: post.__v
+    }));
+    res.status(200).json(formattedPosts);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

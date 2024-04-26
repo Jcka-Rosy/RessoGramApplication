@@ -15,6 +15,7 @@ const {
     disconnectFriend,
     uploadPost,
     getAllPosts,
+    getPostByUserId,
     getPostById,
     likePost,
     likeComment,
@@ -77,7 +78,8 @@ router.get('/all-notifications', getNotificationsController)
 
 router.post('/upload-post', createMulterMiddleware('file', 'uploads/post'), uploadPost)
 router.get('/get-all-post', getAllPosts)
-router.get('/get-all-post/:userId', getPostById)
+router.get('/get-all-post/:userId', getPostByUserId)
+router.get('/get-post/:postId', getPostById)
 router.post('/like-post/:postId/like', likePost)
 router.post('/comments', handleComment)
 router.post('/comments/:commentId/reply', handleReplyComment)

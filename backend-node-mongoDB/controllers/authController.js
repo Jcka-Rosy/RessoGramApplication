@@ -657,7 +657,7 @@ const getPostById = async (req, res) => {
   console.log("req------------>", req)
   try {
     const postId = req.params.postId;
-    const posts = await Post.find({ _id : postId })
+    const posts = await Post.find({ _id : postId }).populate('user', 'name').populate('likes');
     console.log("postId", posts)
     // .populate('user', 'name').populate('likes');
     const formattedPosts = posts.map(post => ({
@@ -670,7 +670,6 @@ const getPostById = async (req, res) => {
       count: post.likes?.length,
       comments: post.comments,
       createdAt: post.createdAt,
-      __v: post.__v
     }));
     res.status(200).json(formattedPosts);
   } catch (err) {

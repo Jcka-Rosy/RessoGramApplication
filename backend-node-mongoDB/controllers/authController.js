@@ -185,7 +185,6 @@ const getRegDataById = async (req, res) => {
   try {
     const userId = req.params.userId;
     const regData = await User.findById(userId, { password: 0 });
-    console.log("regData---->", regData)
     if (!regData) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -198,13 +197,8 @@ const getRegDataById = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log("userId-->", userId, req.body);
-
     const { name, gender, city, state, knownLanguage, knownTechnology } = req.body;
-    console.log("city-->", JSON.parse(city), req.body);
-
     const file = req.file; // Assuming only one file is uploaded
-    console.log("file", file)
     const updatedProfileData = {
       name,
       gender,
@@ -213,7 +207,6 @@ const updateProfile = async (req, res) => {
       knownLanguage: JSON.parse(knownLanguage),
       knownTechnology: JSON.parse(knownTechnology),
     };
-    console.log("updatedProfileData", updatedProfileData)
     if (file) {
       updatedProfileData.coverImage = file.filename; // Adjust this based on your file storage configuration
     }
@@ -612,7 +605,6 @@ const uploadPost = async (req, res) => {
 const getAllPosts = async (req, res) => {
   try {
     const posts = await Post.find().populate('user', 'name coverImage').populate('likes').sort({ createdAt: -1 })
-    console.log("posts------------>", posts)
     const formattedPosts = posts.map(post => ({
       _id: post._id,
       title: post.title,
@@ -654,17 +646,19 @@ const getPostByUserId = async (req, res) => {
 };
 
 const getPostById = async (req, res) => {
-  console.log("req------------>", req)
   try {
     const postId = req.params.postId;
-    const posts = await Post.find({ _id : postId }).populate('user', 'name').populate('likes');
-    console.log("postId", posts)
+    const posts = await Post.find({ _id : postId }).populate({
+      path: 'user',
+      select: 'name coverImage', // Include 'coverImage' field
+    }).populate('likes').populate('comments');
     // .populate('user', 'name').populate('likes');
     const formattedPosts = posts.map(post => ({
       _id: post._id,
       title: post.title,
       caption: post.caption,
       user: post.user.name,
+      coverImage: post.user.coverImage,
       file: post.file,
       like: post.likes,
       count: post.likes?.length,
@@ -952,7 +946,6 @@ const getMessageHistory = async (req, res) => {
     const messages = await ChatMessages.find({ 'messages.roomId': roomId })
       .populate('messages.sender.id', 'coverImage')
       .populate('messages.receiver.id', 'coverImage');
-    console.log("messages------->", messages)
     res.json({ messages });
   } catch (error) {
     console.error('Error fetching messages in room:', error.message);
@@ -1024,8 +1017,14 @@ const getBlockedUsers = async (req, res) => {
 const handleComment = async (req, res) => {
   try {
     const { postId, content, userId } = req.body;
-    // Save the comment to the database
     const comment = await Comment.create({ postId, userId, content });
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ success: false, error: 'Post not found' });
+    }
+    post.comments.push(comment._id);
+    await post.save();
+
     // io.to(postId).emit('new-comment', comment);
     res.status(201).json({ success: true, comment });
   } catch (error) {
@@ -1086,6 +1085,35 @@ const getAllComment = async (req, res) => {
   }
 }
 
+const handleDeleteComment = async (req, res) => {
+  const { commentId } = req.params;
+  const { userId } = req.query; // Access userId from query parameters
+console.log("userId", userId, commentId, commentId)
+  Comment.findById(commentId)
+    .then((comment) => {
+      console.log("comment",comment)
+      if (!comment) {
+        return res.status(404).json({ message: 'Comment not found' });
+      }
+      if (comment.userId.toString() !== userId) {
+        return res.status(403).json({ message: 'You are not authorized to delete this comment' });
+      }
+
+      // Delete the comment
+      Comment.findByIdAndDelete(commentId)
+        .then(() => {
+          res.status(200).json({ message: 'Comment deleted successfully' });
+        })
+        .catch((error) => {
+          res.status(500).json({ error: 'Internal server error' });
+        });
+    })
+    .catch((error) => {
+      res.status(500).json({ error: 'Internal server error' });
+    });
+}
+
+
 module.exports = {
   register,
   login,
@@ -1099,7 +1127,8 @@ module.exports = {
   processFriendRequest,
   disconnectFriend,
   getFriendRequests,
-  getFriends,
+  getFriends, 
+  handleDeleteComment,
   uploadPost,
   getAllPosts,
   getPostByUserId,
@@ -1122,5 +1151,6 @@ module.exports = {
   getBlockedUsers,
   handleComment,
   handleReplyComment,
-  getAllComment
+  getAllComment,
+  handleDeleteComment
 };

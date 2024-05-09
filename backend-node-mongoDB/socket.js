@@ -204,6 +204,34 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('sharedImageData', async ({ roomId, imageId, userId, friendIds }) => {
+        try {
+            console.log("imageId, userId, friendIds ", imageId, userId, friendIds)
+            const sender = await User.findById(userId);
+            const friend = await User.findById(friendIds)
+            console.log("friend", friend)
+            const message = new ChatMessages({
+                messages: [{
+                    sender: { id: userId, name: sender.name },
+                    receiver: { id: friend._id, name: friend.name },
+                    sharedImage: {
+                        imageId: imageId,
+                        userId: userId,
+                        friendIds: friend._id
+                    },
+                    timestamp: new Date(),
+                    roomId: roomId,
+                    viewed: false
+                }]
+            });
+            const savedMessage = await message.save();
+            socket.emit('imageShared', { imageId });
+            console.log('Shared image data saved in ChatMessages:', savedMessage);
+        } catch (error) {
+            console.error('Error saving shared image data to ChatMessages:', error);
+        }
+    });
+
     socket.on('seen message', async ({ roomId, userId, messageIds }) => {
         // Update the message's seenBy array in MongoDB
         console.log("messageId", messageIds)
@@ -279,18 +307,10 @@ io.on('connection', (socket) => {
     // Handle disconnection
 
     socket.on("disconnect", (reason, details) => {
-        // Log the reason of the disconnection
         console.log("Disconnect reason:", reason);
-    
-        // Check if the details object is defined before accessing its properties
         if (details) {
-            // Log the low-level reason of the disconnection
             console.log("Disconnect message:", details.message);
-    
-            // Log some additional description
             console.log("Disconnect description:", details.description);
-    
-            // Log some additional context
             console.log("Disconnect context:", details.context);
         }
     });

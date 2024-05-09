@@ -100,6 +100,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now(),
   },
+  sharedImages: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Post', // Assuming you have a separate image model named 'Image'
+}],
 });
 
 userSchema.virtual('posts', {

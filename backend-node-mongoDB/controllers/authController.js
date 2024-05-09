@@ -648,7 +648,7 @@ const getPostByUserId = async (req, res) => {
 const getPostById = async (req, res) => {
   try {
     const postId = req.params.postId;
-    const posts = await Post.find({ _id : postId }).populate({
+    const posts = await Post.find({ _id: postId }).populate({
       path: 'user',
       select: 'name coverImage', // Include 'coverImage' field
     }).populate('likes').populate('comments');
@@ -725,31 +725,80 @@ const likePost = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+
 const likeComment = async (req, res) => {
   try {
-    const { userId } = req.body; 
+    const { userId } = req.body;
     const { commentId } = req.params;
 
     const comment = await Comment.findById(commentId);
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found' });
     }
-
     const userIndex = comment.likes.findIndex(like => like.user.toString() === userId);
-
     if (userIndex === -1) {
       comment.likes.push({ user: userId });
     } else {
       comment.likes.splice(userIndex, 1);
     }
     await comment.save();
-
     res.status(200).json({ message: 'Like status toggled successfully' });
   } catch (error) {
     console.error('Error toggling like on comment:', error.message);
     res.status(500).json({ error: 'Server error' });
   }
 }
+
+const sharePost = async (req, res) => {
+  try {
+    const { postIds, friendIds } = req.body;
+    const { id } = req.params;
+    if (!postIds) {
+      return res.status(400).json({ success: false, message: 'No postIds provided' });
+    }
+    const Senderuser = await User.findById(id);
+    const Frienduser = await User.findById(friendIds);
+    const chatHistory = await ChatMessages.findOne({
+      'messages.sender.id': id,
+      'messages.receiver.id': friendIds
+    });
+    let roomId = null; // Initialize roomId as null
+    if (chatHistory) {
+      roomId = chatHistory.messages[0].roomId;
+    }
+    if (friendIds) {
+      await User.findByIdAndUpdate(friendIds, { $push: { sharedImages: postIds } });
+      if (chatHistory) {
+        // Update the sharedPost field in the messages array
+        await ChatMessages.updateOne(
+          { _id: chatHistory._id, 'messages.sender.id': id, 'messages.receiver.id': friendIds },
+          { $set: { 'messages.$.sharedPost': postIds } }
+        );
+      } else {
+        const newChatMessage = new ChatMessages({
+          messages: [
+            {
+              sender: { id: id, name: Senderuser.name },
+              receiver: { id: friendIds, name: Frienduser.name },
+              roomId: roomId || '8a007704-0b74-4b93-8506-2ff465eae523',
+              content: '', // Provide an empty string for the content
+              sharedPost: postIds,
+              timestamp: new Date(),
+              seenBy: [],
+              viewed: false
+            }
+          ]
+        });
+        await newChatMessage.save();
+      }
+    }
+
+    res.status(200).json({ success: true, message: 'Images shared successfully' });
+  } catch (error) {
+    console.error('Error sharing images:', error);
+    res.status(500).json({ success: false, message: 'Failed to share images' });
+  }
+};
 
 const getNotificationsController = async (req, res) => {
   try {
@@ -779,14 +828,10 @@ const getNotificationsController = async (req, res) => {
 const notificationPreference = async (req, res) => {
   try {
     const { userId, notificationPreferences } = req.body;
-
-    // Assuming you have a way to validate userId or ensure its authenticity
-
     const user = await User.findByIdAndUpdate(userId, { notificationPreferences }, { new: true });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-
     res.status(200).json({ message: 'Notification preferences updated successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Internal server error' });
@@ -874,9 +919,9 @@ const postMessages = async (req, res) => {
   try {
     const { receiverId, content } = req.body;
     // const message = new Message({
-      // sender: req.user._id,
-      // receiver: receiverId,`
-      // content
+    // sender: req.user._id,
+    // receiver: receiverId,`
+    // content
     // });
     // await message.save();
     // res.status(201).json(message);
@@ -945,7 +990,8 @@ const getMessageHistory = async (req, res) => {
   try {
     const messages = await ChatMessages.find({ 'messages.roomId': roomId })
       .populate('messages.sender.id', 'coverImage')
-      .populate('messages.receiver.id', 'coverImage');
+      .populate('messages.receiver.id', 'coverImage')
+      .populate('messages.sharedImage.imageId', 'file');
     res.json({ messages });
   } catch (error) {
     console.error('Error fetching messages in room:', error.message);
@@ -1037,21 +1083,12 @@ const handleReplyComment = async (req, res) => {
   try {
     const { commentId } = req.params;
     const { content, userId } = req.body;
-
-    // Find the comment in the database
     const comment = await Comment.findById(commentId);
-
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found' });
     }
-
-    // Add the reply to the comment
     comment.replies.push({ content, userId });
-
-    // Save the updated comment
     await comment.save();
-
-    // Send a success response
     res.status(201).json({ message: 'Reply submitted successfully', data: comment });
   } catch (error) {
     console.error('Error submitting reply:', error);
@@ -1069,7 +1106,7 @@ const getAllComment = async (req, res) => {
       });
 
     const formatedComments = comments.map(comment => ({
-      _id:comment.id,
+      _id: comment.id,
       content: comment.content,
       like: comment.likes,
       count: comment.likes?.length,
@@ -1088,10 +1125,8 @@ const getAllComment = async (req, res) => {
 const handleDeleteComment = async (req, res) => {
   const { commentId } = req.params;
   const { userId } = req.query; // Access userId from query parameters
-console.log("userId", userId, commentId, commentId)
   Comment.findById(commentId)
     .then((comment) => {
-      console.log("comment",comment)
       if (!comment) {
         return res.status(404).json({ message: 'Comment not found' });
       }
@@ -1127,7 +1162,7 @@ module.exports = {
   processFriendRequest,
   disconnectFriend,
   getFriendRequests,
-  getFriends, 
+  getFriends,
   handleDeleteComment,
   uploadPost,
   getAllPosts,
@@ -1135,6 +1170,7 @@ module.exports = {
   getPostById,
   likePost,
   likeComment,
+  sharePost,
   getNotificationsController,
   notificationPreference,
   getNotificationPreference,

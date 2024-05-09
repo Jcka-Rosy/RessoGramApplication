@@ -36,8 +36,9 @@ const {
     handleComment,
     handleReplyComment,
     handleDeleteComment,
+    sharePost,
     getAllComment,
-    updateProfile} = require('../controllers/authController');
+    updateProfile } = require('../controllers/authController');
 
 const multer = require("multer");
 const path = require("path");
@@ -67,16 +68,14 @@ router.post('/forget-password', forgetPassword);
 router.post('/reset-password/:token', resetPassword);
 router.get('/password-requirements', passwordNeeds);
 router.get('/get-reg-data', getRegData),
-router.get('/get-reg-data/:userId', getRegDataById),
-router.put('/update-profile/:userId', createMulterMiddleware('file', 'uploads/profile'), updateProfile)
-
+    router.get('/get-reg-data/:userId', getRegDataById),
+    router.put('/update-profile/:userId', createMulterMiddleware('file', 'uploads/profile'), updateProfile)
 router.post('/send-friend-request/:userId', sendFriendRequest);
 router.get('/get-friend-requests', getFriendRequests);
 router.post('/process-friend-request/:senderId/:userId/:action', processFriendRequest);
 router.post('/disconnect-friend/:friendId', disconnectFriend);
 router.get('/get-friends', getFriends)
 router.get('/all-notifications', getNotificationsController)
-
 router.post('/upload-post', createMulterMiddleware('file', 'uploads/post'), uploadPost)
 router.get('/get-all-post', getAllPosts)
 router.get('/get-all-post/:userId', getPostByUserId)
@@ -87,7 +86,8 @@ router.post('/comments/:commentId/reply', handleReplyComment)
 router.delete('/comments-delete/:commentId', handleDeleteComment)
 router.get('/comments/image/:imageId', getAllComment)
 router.post('/like-comment/:commentId/like', likeComment)
-router.post('/notification-preferences',notificationPreference)
+router.post('/share-image/:id', sharePost)
+router.post('/notification-preferences', notificationPreference)
 router.get('/get-notification-preferences/:userId', getNotificationPreference)
 router.get('/get-notification-details/:id', notificationDetails)
 router.get('/get-user-notification-details/:id', notificationUserDetails)

@@ -29,7 +29,7 @@ const messageSchema = new mongoose.Schema({
     },
     content: {
         type: String,
-        required: true
+        required: false
     },
     timestamp: {
         type: Date,
@@ -44,6 +44,22 @@ const messageSchema = new mongoose.Schema({
     viewed: {
         type: Boolean,
         default: false
+    },
+    sharedImage: {
+        imageId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Post',
+            // required: false
+        },
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            // required: false
+        },
+        friendIds: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        }
     }
 });
 

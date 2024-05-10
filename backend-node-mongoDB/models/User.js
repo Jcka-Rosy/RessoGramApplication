@@ -92,7 +92,7 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
   }],
-  blockedBy:[{
+  blockedBy: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
   }],
@@ -102,8 +102,8 @@ const userSchema = new mongoose.Schema({
   },
   sharedImages: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Post', // Assuming you have a separate image model named 'Image'
-}],
+    ref: 'Post',
+  }],
 });
 
 userSchema.virtual('posts', {

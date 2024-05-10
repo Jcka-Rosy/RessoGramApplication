@@ -20,7 +20,7 @@ const notificationSchema = new mongoose.Schema({
         // required: true
     },
     time: {
-        type: String, // Change to String if you want to store as a string
+        type: String,
         default: () => new Date().toLocaleTimeString('en-US', { hour12: false }),
         // required: true
     },

@@ -19,7 +19,6 @@ const messageNotificationSchema = new mongoose.Schema({
     date: {
         type: Date,
         default: Date.now,
-        // Add any additional fields specific to message notifications
     },
     viewed: {
         type: Boolean,

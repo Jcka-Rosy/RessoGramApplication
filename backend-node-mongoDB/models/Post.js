@@ -18,7 +18,6 @@ const postSchema = new mongoose.Schema({
         ref: 'Comment',
     }],
     file: {
-        // Define the file field to store file information
         fileName: {
             type: String,
             required: true,

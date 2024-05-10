@@ -19,7 +19,7 @@ const friendRequestSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-},
+  },
 });
 
 // friendRequestSchema.index({ senderId: 1, receiverId: 1 }, { unique: true });

@@ -4,9 +4,7 @@ const socketIO = require('socket.io');
 const User = require('./models/User');
 const mongoose = require('mongoose');
 const ChatMessages = require('./models/ChatMessage');
-const ChatRoom = require('./models/ChatRoom');
-const Comment = require('./models/Comments');
-
+const Post = require('./models/Post');
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
@@ -14,17 +12,10 @@ const io = socketIO(server, {
         origin: '*',
     }
 });
-// const roomId = 'room'
 io.on('connection', (socket) => {
     console.log("Connection Test----->")
 
-    // socket.on('join room', (groupName) => {
-    //     console.log("MY ROOM--->", "groupName")
-    //     socket.join(roomId);
-    // });
-
     socket.on('send request', async ({ senderId, receiverId }) => {
-        console.log("senderId", senderId, "receiverId", receiverId)
         try {
             const filteredFriendRequests = await User.aggregate([
                 { $match: { _id: new mongoose.Types.ObjectId(receiverId) } },
@@ -77,7 +68,6 @@ io.on('connection', (socket) => {
     })
 
     socket.on('status', async ({ senderId, receiverId, status }) => {
-        console.log("status", status, "senderId", senderId, "receiverId", receiverId)
         try {
             const user = await User.findById(receiverId).populate({
                 path: 'friendsList',
@@ -120,7 +110,6 @@ io.on('connection', (socket) => {
     })
 
     socket.on('unfriend', async ({ friendId, accountholder }) => {
-        console.log("friendId", friendId, "accountholder", accountholder)
         try {
             const user = await User.findByIdAndUpdate(
                 accountholder,
@@ -142,7 +131,6 @@ io.on('connection', (socket) => {
     })
 
     socket.on('friendTotalList', async ({ accountholder }) => {
-        console.log("accountholder11", accountholder)
         try {
             const user = await User.findById(accountholder).populate({
                 path: 'friendsList',
@@ -152,7 +140,6 @@ io.on('connection', (socket) => {
             if (!user) {
                 return res.status(404).json({ message: 'User not found' });
             }
-            console.log("user44444444", user)
             const friends = user.friendsList.map(friendId => ({
                 _id: friendId._id,
                 name: friendId.name,
@@ -165,21 +152,17 @@ io.on('connection', (socket) => {
     })
 
     socket.on('joinChatRoom', ({ roomId, userId }) => {
-        console.log(`User ${userId} joined room ${roomId}`);
         socket.join(roomId);
     });
 
     socket.on('chatMessage', async ({ roomId, senderId, receiverId, content }) => {
-        console.log("roomId", roomId, "senderId", senderId, "receiverId", receiverId, "content", content);
         try {
             const sender = await User.findById(senderId);
             const receiver = await User.findById(receiverId);
-
             if (!sender || !receiver) {
                 console.error('Sender or receiver not found');
                 return;
             }
-
             const message = new ChatMessages({
                 messages: [{
                     sender: { id: senderId, name: sender.name },
@@ -187,18 +170,12 @@ io.on('connection', (socket) => {
                     content: content,
                     timestamp: new Date(),
                     roomId: roomId,
-                    viewed: false // Initially set viewed to false
+                    viewed: false
                 }]
             });
-
             await message.save();
-
-            // Emit the message to all clients in the room
             io.to(roomId).emit('message', message);
-
-            // Emit acknowledgment to sender that message has been delivered
             // socket.emit('messageDelivered', { messageId: message._id });
-
         } catch (error) {
             console.error(error);
         }
@@ -206,63 +183,56 @@ io.on('connection', (socket) => {
 
     socket.on('sharedImageData', async ({ roomId, imageId, userId, friendIds }) => {
         try {
-            console.log("imageId, userId, friendIds ", imageId, userId, friendIds)
             const sender = await User.findById(userId);
-            const friend = await User.findById(friendIds)
-            console.log("friend", friend)
-            const message = new ChatMessages({
-                messages: [{
-                    sender: { id: userId, name: sender.name },
-                    receiver: { id: friend._id, name: friend.name },
-                    sharedImage: {
-                        imageId: imageId,
-                        userId: userId,
-                        friendIds: friend._id
+            const friend = await User.findById(friendIds);
+            const ImageDetails = await Post.findById(imageId);
+
+            const newMessage = {
+                sender: {
+                    id: sender._id,
+                    coverImage: sender.coverImage,
+                    name: sender.name
+                },
+                receiver: {
+                    id: friend._id,
+                    coverImage: friend.coverImage,
+                    name: friend.name
+                },
+                sharedImage: {
+                    imageId: {
+                        file: {
+                            fileName: ImageDetails.file.fileName,
+                            filePath: ImageDetails.file.filePath,
+                            fileType: ImageDetails.file.fileType
+                        },
+                        _id: imageId
                     },
-                    timestamp: new Date(),
-                    roomId: roomId,
-                    viewed: false
-                }]
-            });
+                    userId: userId,
+                    friendIds: friend._id
+                },
+                roomId: roomId,
+                timestamp: new Date(),
+                viewed: false
+            };
+
+            const message = new ChatMessages({ messages: [newMessage] });
             const savedMessage = await message.save();
-            socket.emit('imageShared', { imageId });
-            console.log('Shared image data saved in ChatMessages:', savedMessage);
+
+            io.to(roomId).emit('imageShared', savedMessage);
         } catch (error) {
             console.error('Error saving shared image data to ChatMessages:', error);
         }
     });
 
     socket.on('seen message', async ({ roomId, userId, messageIds }) => {
-        // Update the message's seenBy array in MongoDB
-        console.log("messageId", messageIds)
         const seenMessages = await ChatMessages.updateOne(
             { 'messages.roomId': roomId, 'messages._id': { $in: messageIds } },
             { $addToSet: { 'messages.$.seenBy': userId } }
         );
-        console.log("seenMessages", seenMessages)
-        // Broadcast the updated message seen status to all participants
         io.to(roomId).emit('messageDelivered', { userId, messageIds });
     });
 
-    // socket.on("markMessagesAsSeen", async ({ conversationId, userId }) => {
-    //     try {
-    //         await ChatMessages.updateMany({ roomId: conversationId, viewed: false }, { $set: { viewed: true } });
-    //         await ChatRoom.updateOne({ roomId: conversationId }, { $set: { viewed : true } });
-    //         io.to(userId).emit("messagesSeen", { conversationId });
-    //     } catch (error) {
-    //         console.log(error);
-    //     }
-    // });
-
-    //     socket.on('newMessage', ({data, receiverId}) => {
-    //     // Broadcast new message to all connected clients
-    //     console.log("dataToday----------->", data, receiverId)
-    //     console.log("HAPPY------------------>")
-    //     io.to(receiverId).emit('newMessageNotification', data); // Use socket.emit instead of io.emit
-    // });
-
     socket.on('newMessage', async ({ userId, receiverId }) => {
-        console.log("userId, receiverId", userId, receiverId)
         try {
             // Count the number of messages where the given user ID is either the sender or receiver
             const messageCount = await ChatMessages.countDocuments({
@@ -271,8 +241,6 @@ io.on('connection', (socket) => {
                     { 'messages.receiver.id': userId, 'messages.viewed': false }
                 ]
             });
-            console.log("messagesToday--->", messageCount) //output messagesToday---> 1
-
             io.emit('unreadMessageCount', { messageCount, receiverId });
         } catch (error) {
             console.error('Error retrieving message count:', error);
@@ -283,7 +251,6 @@ io.on('connection', (socket) => {
     socket.on('blockFriend', async ({ friendId }) => {
         try {
             // Implement block logic here, update database, etc.
-            // For example:
             await User.findByIdAndUpdate(friendId, { blocked: true });
 
             // Inform frontend about the success of the block action
@@ -292,19 +259,6 @@ io.on('connection', (socket) => {
             console.error('Error blocking friend:', error.message);
         }
     });
-
-    // socket.on('new-comment', async ({ postId, content }) => {
-    //     try {
-    //       // Save the comment to the database
-    //       const comment = await Comment.create({ postId, userId: socket.userId, content });
-    //       // Emit the new comment to other clients viewing the same post
-    //       socket.to(postId).emit('new-comment', comment);
-    //     } catch (error) {
-    //       console.error('Error saving comment:', error);
-    //     }
-    //   });
-
-    // Handle disconnection
 
     socket.on("disconnect", (reason, details) => {
         console.log("Disconnect reason:", reason);

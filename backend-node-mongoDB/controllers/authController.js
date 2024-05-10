@@ -3,12 +3,10 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const FriendRequest = require('../models/FriendRequest');
 const mongoose = require('mongoose');
-// const EmailTemplate = require('../models/emailtemplate');
 const User = require('../models/User');
 const Post = require('../models/Post');
 const Like = require('../models/Like');
 const Notification = require('../models/Notification');
-const Message = require('../models/ChatMessage');
 const ChatRoom = require('../models/ChatRoom');
 const jwtSecret = "happy-faces";
 const { v4: uuidv4 } = require('uuid');
@@ -33,7 +31,7 @@ function verifyAndDecodeAccessToken(accessToken, secretKey) {
     const decoded = jwt.verify(accessToken, secretKey);
     return decoded;
   } catch (error) {
-    return null; // Return null if token verification fails
+    return null;
   }
 }
 
@@ -109,7 +107,7 @@ const forgetPassword = async (req, res) => {
     }
     const token = generateUniquePasswordToken(user);
     user.resetPasswordToken = token;
-    user.resetPasswordExpires = Date.now() + 3600000; // Token expires in 1 hour
+    user.resetPasswordExpires = Date.now() + 3600000;
     await user.save();
     sendPasswordResetEmail(email, token);
     return res.status(200).json({ message: 'Password reset email sent successfully' });
@@ -198,7 +196,7 @@ const updateProfile = async (req, res) => {
   try {
     const { userId } = req.params;
     const { name, gender, city, state, knownLanguage, knownTechnology } = req.body;
-    const file = req.file; // Assuming only one file is uploaded
+    const file = req.file;
     const updatedProfileData = {
       name,
       gender,
@@ -208,11 +206,10 @@ const updateProfile = async (req, res) => {
       knownTechnology: JSON.parse(knownTechnology),
     };
     if (file) {
-      updatedProfileData.coverImage = file.filename; // Adjust this based on your file storage configuration
+      updatedProfileData.coverImage = file.filename;
     }
 
     const updatedProfile = await User.findByIdAndUpdate(userId, updatedProfileData, { new: true });
-
     res.status(200).json(updatedProfile);
   } catch (error) {
     console.error(error);
@@ -364,7 +361,7 @@ const getFriends = async (req, res) => {
 
     const user = await User.findById(userData.userId).populate({
       path: 'friendsList',
-      select: 'name coverImage', // Include 'coverImage' field
+      select: 'name coverImage',
     });
 
     if (!user) {
@@ -374,7 +371,7 @@ const getFriends = async (req, res) => {
     const friends = user.friendsList.map(friend => ({
       _id: friend._id,
       name: friend.name,
-      coverImage: friend.coverImage, // Add 'coverImage' field to the friend object
+      coverImage: friend.coverImage,
     }));
 
     res.json(friends);
@@ -382,70 +379,6 @@ const getFriends = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
-
-
-// const getFriends = async (req, res) => {
-//   try {
-//     const accessToken = req.headers.authorization.split(' ')[1];
-//     const userData = verifyAndDecodeAccessToken(accessToken, jwtSecret);
-
-//     const userId = mongoose.Types.ObjectId(userData.userId);
-
-//     const user = await User.aggregate([
-//       {
-//         $match: { _id: userId }
-//       },
-//       {
-//         $lookup: {
-//           from: 'friendrequests',
-//           localField: 'friendRequests.senderId',
-//           foreignField: '_id',
-//           as: 'friendRequestsData'
-//         }
-//       },
-//       {
-//         $unwind: '$friendRequestsData'
-//       },
-//       {
-//         $match: {
-//           'friendRequestsData.senderId': { $ne: userId }
-//         }
-//       },
-//       {
-//         $lookup: {
-//           from: 'users',
-//           localField: 'friendRequestsData.senderId',
-//           foreignField: '_id',
-//           as: 'friendData'
-//         }
-//       },
-//       {
-//         $unwind: '$friendData'
-//       },
-//       {
-//         $project: {
-//           _id: '$friendData._id',
-//           name: '$friendData.name'
-//           // Add other fields as needed
-//         }
-//       }
-//     ]);
-
-//     if (!user || !user[0]) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
-
-//     const friends = user.map(request => ({
-//       _id: request._id,
-//       name: request.name,
-//       // Add other fields as needed
-//     }));
-
-//     res.json({ friends, user });
-//   } catch (error) {
-//     res.status(500).json({ message: 'Internal server error' });
-//   }
-// };
 
 const processFriendRequest = async (req, res) => {
   try {
@@ -512,13 +445,6 @@ const processFriendRequest = async (req, res) => {
       { $pull: { friendRequests: { senderId, friendRequestId: friendRequest._id } } },
       { multi: true }
     );
-
-    // Find and delete the corresponding notification
-    // await Notification.findOneAndDelete({
-    //   sender: senderId,
-    //   receiver: userId,
-    //   notificationType: 'friendRequest'
-    // });
 
     res.json({ message: `Friend request ${action.toLowerCase()}ed successfully.` });
   } catch (error) {
@@ -650,9 +576,8 @@ const getPostById = async (req, res) => {
     const postId = req.params.postId;
     const posts = await Post.find({ _id: postId }).populate({
       path: 'user',
-      select: 'name coverImage', // Include 'coverImage' field
+      select: 'name coverImage',
     }).populate('likes').populate('comments');
-    // .populate('user', 'name').populate('likes');
     const formattedPosts = posts.map(post => ({
       _id: post._id,
       title: post.title,
@@ -762,7 +687,7 @@ const sharePost = async (req, res) => {
       'messages.sender.id': id,
       'messages.receiver.id': friendIds
     });
-    let roomId = null; // Initialize roomId as null
+    let roomId = null;
     if (chatHistory) {
       roomId = chatHistory.messages[0].roomId;
     }
@@ -915,22 +840,6 @@ const notificationCount = async (req, res) => {
   }
 }
 
-const postMessages = async (req, res) => {
-  try {
-    const { receiverId, content } = req.body;
-    // const message = new Message({
-    // sender: req.user._id,
-    // receiver: receiverId,`
-    // content
-    // });
-    // await message.save();
-    // res.status(201).json(message);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-}
-
 const generateRoomId = () => {
   return uuidv4(); // Generate a UUID (v4)
 };
@@ -1071,7 +980,6 @@ const handleComment = async (req, res) => {
     post.comments.push(comment._id);
     await post.save();
 
-    // io.to(postId).emit('new-comment', comment);
     res.status(201).json({ success: true, comment });
   } catch (error) {
     console.error('Error saving comment:', error);
@@ -1124,7 +1032,7 @@ const getAllComment = async (req, res) => {
 
 const handleDeleteComment = async (req, res) => {
   const { commentId } = req.params;
-  const { userId } = req.query; // Access userId from query parameters
+  const { userId } = req.query;
   Comment.findById(commentId)
     .then((comment) => {
       if (!comment) {
@@ -1134,7 +1042,6 @@ const handleDeleteComment = async (req, res) => {
         return res.status(403).json({ message: 'You are not authorized to delete this comment' });
       }
 
-      // Delete the comment
       Comment.findByIdAndDelete(commentId)
         .then(() => {
           res.status(200).json({ message: 'Comment deleted successfully' });
@@ -1177,7 +1084,6 @@ module.exports = {
   notificationDetails,
   notificationUserDetails,
   notificationCount,
-  postMessages,
   getRoomId,
   createChatRoom,
   getMessageHistory,

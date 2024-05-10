@@ -25,7 +25,6 @@ const {
     notificationDetails,
     notificationUserDetails,
     notificationCount,
-    postMessages,
     createChatRoom,
     getRoomId,
     getMessageHistory,
@@ -45,7 +44,6 @@ const path = require("path");
 const fs = require("fs");
 
 function createMulterMiddleware(fieldName, uploadDir) {
-    console.log("fieldName---->", fieldName)
     return multer({
         storage: multer.diskStorage({
             destination: function (req, file, callback) {
@@ -92,7 +90,6 @@ router.get('/get-notification-preferences/:userId', getNotificationPreference)
 router.get('/get-notification-details/:id', notificationDetails)
 router.get('/get-user-notification-details/:id', notificationUserDetails)
 router.get('/get-notification-count/:id', notificationCount)
-router.post('/post-messages', postMessages)
 router.post('/create-chat-room/:receiverId/:userId', createChatRoom)
 router.get('/get-roomId/:receiverId/:userId', getRoomId)
 router.get('/get-message-history/:roomId', getMessageHistory)
